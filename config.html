@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SDKTut9 Configuration</title>
+  </head>
+  <body>
+    <h1>Pebble Config Tutorial</h1>
+    <p>Choose watchapp settings</p>
+
+    <p>Idioma:
+    <select id="idioma_select">
+      <option value="spanish">Espa&ntilde;ol</option>
+      <option value="english">English</option>
+    </select>
+    </p>
+	
+    <p>VIBE watchapp:
+    <select id="vibe_select">
+      <option value="on">On</option>
+      <option value="off">Off</option>
+    </select>
+    </p>
+
+    <p>Dateformat:
+    <select id="dateformat_select">
+      <option value="DDMM">DD/MM</option>
+      <option value="MMDD">MM/DD</option>
+    </select>
+    </p>
+	
+    <p>Mostrar segundero:
+    <select id="segundos_select">
+      <option value="on">On</option>	
+      <option value="off">Off</option>
+    </select>
+    </p>
+	
+	
+    <p>Hourly vibe:
+    <select id="hourlyvibe_select">
+      <option value="off">Off</option>
+      <option value="on">On</option>	
+    </select>
+    </p>
+	
+    <p>
+    <button id="save_button">Save</button>
+    </p>
+
+    <script>
+      //Setup to allow easy adding more options later
+      function saveOptions() {
+        var idiomaSelect = document.getElementById("idioma_select");
+        var vibeSelect = document.getElementById("vibe_select");
+        var dateformatSelect = document.getElementById("dateformat_select");
+        var segundosSelect = document.getElementById("segundos_select");
+        var hourlyvibeSelect = document.getElementById("hourlyvibe_select");
+
+
+        var options = {
+          "idioma": idiomaSelect.options[idiomaSelect.selectedIndex].value,
+		  "vibe": vibeSelect.options[vibeSelect.selectedIndex].value,	
+		  "dateformat": dateformatSelect.options[dateformatSelect.selectedIndex].value,
+		  "segundos": segundosSelect.options[segundosSelect.selectedIndex].value,
+		  "hourlyvibe": hourlyvibeSelect.options[hourlyvibeSelect.selectedIndex].value	
+			
+        }
+        
+        return options;
+      };
+
+      var submitButton = document.getElementById("save_button");
+      submitButton.addEventListener("click", 
+        function() {
+          console.log("Submit");
+
+          var options = saveOptions();
+          var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(options));
+          
+          document.location = location;
+        }, 
+      false);
+    </script>
+  </body>
+</html>
