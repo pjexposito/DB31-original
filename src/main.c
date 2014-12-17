@@ -2,6 +2,8 @@
 // Código del tiempo adaptado de https://github.com/Niknam/futura-weather-sdk2.0.
 // Lo anteriormente mencionado ya no se usa en esta version
 // Código del reloj basado en https://github.com/orviwan/91-Dub-v2.0
+// Con código de https://ninedof.wordpress.com/2014/05/24/pebble-sdk-2-0-tutorial-9-app-configuration/
+
 
 // UUID para versión en español: "11d1527e-985b-4844-bc10-34ede0ee9caf"
 // UUID para versión en inglés:  "a8336799-b197-4e3d-8afd-3290317c65b2"
@@ -9,32 +11,25 @@
 
 
 #include "pebble.h"
-
-
   
-  
-static Window *window;
-static Layer *window_layer;
-
-static uint8_t batteryPercent;
-
 #define KEY_IDIOMA 0
 #define KEY_VIBE 1
 #define KEY_DATEFORMAT 2
 #define KEY_SEGUNDOS 3
-#define KEY_HOURLYVIBE 4
-
+#define KEY_HOURLYVIBE 4  
+  
+static Window *window;
+static Layer *window_layer;
+static uint8_t batteryPercent;
 
 
 int IDIOMA;  
 // IDIOMA = 1, texto en español
 // IDIOMA = 0, text in english  
-// #define IDIOMA 1 Ya no se usa el define. Ahora hay configuración
   
 bool DATEFORMAT;
 // DATEFORMAT = 1, Formato europeo (DD/MM/AAAA)
 // DATEFORMAT = 0, Formato americano (MM/DD/AAAA)
-//#define DATEFORMAT 1. Ya no se usa el define. Ahora va configurado.
   
 
 // Vibra al perder la conexión BT  
@@ -188,21 +183,22 @@ const int TINY_IMAGE_RESOURCE_IDS[] = {
 };
 
 
-  static void carga_preferencias(void)
-  {
-    
+static void carga_preferencias(void)
+  { 
     // Carga las preferencias
     IDIOMA = persist_exists(KEY_IDIOMA) ? persist_read_int(KEY_IDIOMA) : 0;
     DATEFORMAT = persist_exists(KEY_DATEFORMAT) ? persist_read_bool(KEY_DATEFORMAT) : 0;
     BluetoothVibe = persist_exists(KEY_VIBE) ? persist_read_int(KEY_VIBE) : 1;
     SEGUNDOS = persist_exists(KEY_SEGUNDOS) ? persist_read_int(KEY_SEGUNDOS) : 1;
     HourlyVibe = persist_exists(KEY_HOURLYVIBE) ? persist_read_int(KEY_HOURLYVIBE) : 0;
- 
   }
 
-  static void in_recv_handler(DictionaryIterator *iterator, void *context)
-{
-  //Get Tuple
+static void handle_tick(struct tm *tick_time, TimeUnits units_changed);
+
+
+static void in_recv_handler(DictionaryIterator *iterator, void *context)
+  {
+  //Recibe los datos de configuración
   Tuple *key_idioma_tuple = dict_find(iterator, KEY_IDIOMA);
   Tuple *key_vibe_tuple = dict_find(iterator, KEY_VIBE);
   Tuple *key_dateformat_tuple = dict_find(iterator, KEY_DATEFORMAT);
@@ -233,8 +229,26 @@ const int TINY_IMAGE_RESOURCE_IDS[] = {
      persist_write_int(KEY_HOURLYVIBE, 1);
   else if(strcmp(key_hourlyvibe_tuple->value->cstring, "off") == 0)
      persist_write_int(KEY_HOURLYVIBE, 0);
-        
-    
+  
+  // Vuelve a dibujar el reloj tras cerrar las preferencias
+  carga_preferencias();
+  
+  if(SEGUNDOS)
+  {
+    tick_timer_service_subscribe(SECOND_UNIT, handle_tick);
+    layer_set_hidden(bitmap_layer_get_layer(seg_digits_layers[0]), false);
+    layer_set_hidden(bitmap_layer_get_layer(seg_digits_layers[1]), false);    
+  }
+  else
+  {
+    layer_set_hidden(bitmap_layer_get_layer(seg_digits_layers[0]), true);
+    layer_set_hidden(bitmap_layer_get_layer(seg_digits_layers[1]), true);    
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+  }
+  time_t now = time(NULL);
+  struct tm *tick_time = localtime(&now);  
+  handle_tick(tick_time, YEAR_UNIT + MONTH_UNIT + DAY_UNIT + HOUR_UNIT + MINUTE_UNIT + SECOND_UNIT);
+
 }
 
 
@@ -250,10 +264,6 @@ void change_battery_icon(bool charging) {
   layer_mark_dirty(bitmap_layer_get_layer(battery_image_layer));
 }
 
-static void handle_tick(struct tm *tick_time, TimeUnits units_changed);
-
-
-
 
 static void set_container_image(GBitmap **bmp_image, BitmapLayer *bmp_layer, const int resource_id, GPoint origin) {
   GBitmap *old_image = *bmp_image;
@@ -265,41 +275,35 @@ static void set_container_image(GBitmap **bmp_image, BitmapLayer *bmp_layer, con
   bitmap_layer_set_bitmap(bmp_layer, *bmp_image);
   layer_set_frame(bitmap_layer_get_layer(bmp_layer), frame);
   if (old_image != NULL) {
-	gbitmap_destroy(old_image);
+	  gbitmap_destroy(old_image);
 	old_image = NULL;
   }
 }
 
 
 static void update_battery(BatteryChargeState charge_state) {
-
   batteryPercent = charge_state.charge_percent;
-
-  if(batteryPercent==100) {
-	change_battery_icon(false);
-	layer_set_hidden(bitmap_layer_get_layer(battery_layer), false);
+  if(batteryPercent==100) 
+  {
+	  change_battery_icon(false);
+	  layer_set_hidden(bitmap_layer_get_layer(battery_layer), false);
     for (int i = 0; i < TOTAL_BATTERY_PERCENT_DIGITS; ++i) {
       layer_set_hidden(bitmap_layer_get_layer(battery_percent_layers[i]), true);
     }  
     return;
   }
-
   layer_set_hidden(bitmap_layer_get_layer(battery_layer), charge_state.is_charging);
-  change_battery_icon(charge_state.is_charging);
-    
+  change_battery_icon(charge_state.is_charging);  
   for (int i = 0; i < TOTAL_BATTERY_PERCENT_DIGITS; ++i) {
     layer_set_hidden(bitmap_layer_get_layer(battery_percent_layers[i]), false);
   }  
   set_container_image(&battery_percent_image[0], battery_percent_layers[0], TINY_IMAGE_RESOURCE_IDS[charge_state.charge_percent/10], GPoint(13, 41));
   set_container_image(&battery_percent_image[1], battery_percent_layers[1], TINY_IMAGE_RESOURCE_IDS[charge_state.charge_percent%10], GPoint(20, 41));
   set_container_image(&battery_percent_image[2], battery_percent_layers[2], TINY_IMAGE_RESOURCE_IDS[10], GPoint(27, 41));
- 
 }
 
 static void toggle_bluetooth_icon(bool connected) {
   if(appStarted && !connected && BluetoothVibe) {
-    //vibe!
-    //vibes_long_pulse();
     static uint32_t const segments[] = { 200, 100, 100, 100, 500 };
     VibePattern pat = {
       .durations = segments,
@@ -315,7 +319,6 @@ void bluetooth_connection_callback(bool connected) {
 }
 
 void battery_layer_update_callback(Layer *me, GContext* ctx) {        
-  //draw the remaining battery percentage
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, GRect(2, 2, ((batteryPercent/100.0)*11.0), 3), 0, GCornerNone);
@@ -336,16 +339,17 @@ static void update_days(struct tm *tick_time) {
     set_container_image(&day_name_image, day_name_layer, DAY_NAME_IMAGE_RESOURCE_IDS[tick_time->tm_wday], GPoint(41, 42));
   else
     set_container_image(&day_name_image, day_name_layer, DAY_NAME_EN_IMAGE_RESOURCE_IDS[tick_time->tm_wday], GPoint(41, 42));
+ 
   if (DATEFORMAT==1)
-  {
+    {
     set_container_image(&date_digits_images[0], date_digits_layers[0], DATENUM_IMAGE_RESOURCE_IDS[tick_time->tm_mday/10], GPoint(72, 70));
     set_container_image(&date_digits_images[1], date_digits_layers[1], DATENUM_IMAGE_RESOURCE_IDS[tick_time->tm_mday%10], GPoint(85, 70));
-  }
+    }
   else
-  {
+    {
     set_container_image(&date_digits_images[0], date_digits_layers[0], DATENUM_IMAGE_RESOURCE_IDS[tick_time->tm_mday/10], GPoint(110, 70));
     set_container_image(&date_digits_images[1], date_digits_layers[1], DATENUM_IMAGE_RESOURCE_IDS[tick_time->tm_mday%10], GPoint(123, 70));    
-  }  
+    }  
 }
 
 static void update_months(struct tm *tick_time) {
@@ -369,7 +373,6 @@ static void update_years(struct tm *tick_time) {
 static void update_hours(struct tm *tick_time) {
 
   if(appStarted && HourlyVibe) {
-    //vibe!
     vibes_short_pulse();
   }
   
@@ -396,37 +399,28 @@ static void update_hours(struct tm *tick_time) {
 
   }
 }
+
 static void update_minutes(struct tm *tick_time) {
   set_container_image(&time_digits_images[2], time_digits_layers[2], BIG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_min/10], GPoint(60, 97));
   set_container_image(&time_digits_images[3], time_digits_layers[3], BIG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_min%10], GPoint(83, 97));
 }
+
 static void update_seconds(struct tm *tick_time) {
-  set_container_image(&seg_digits_images[0], seg_digits_layers[0], SEG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_sec/10], GPoint(107, 110));
-  set_container_image(&seg_digits_images[1], seg_digits_layers[1], SEG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_sec%10], GPoint(122, 110));
+  if (SEGUNDOS==1)
+  {
+    set_container_image(&seg_digits_images[0], seg_digits_layers[0], SEG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_sec/10], GPoint(107, 110));
+    set_container_image(&seg_digits_images[1], seg_digits_layers[1], SEG_DIGIT_IMAGE_RESOURCE_IDS[tick_time->tm_sec%10], GPoint(122, 110));
+  }
+
 }
 
 static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
-  if (units_changed & YEAR_UNIT) {
-    update_years(tick_time);
-  }
-  
-  if (units_changed & MONTH_UNIT) {
-    update_months(tick_time);
-  }
-  if (units_changed & DAY_UNIT) {
-    update_days(tick_time);
-  }
-  if (units_changed & HOUR_UNIT) {
-    update_hours(tick_time);
-  }
-  if (units_changed & MINUTE_UNIT) {
-    update_minutes(tick_time);
-  }  
-  if (units_changed & SECOND_UNIT) {
-    update_seconds(tick_time);
-  }	
-  
-  
+  if (units_changed & YEAR_UNIT) update_years(tick_time);
+  if (units_changed & MONTH_UNIT) update_months(tick_time);
+  if (units_changed & DAY_UNIT) update_days(tick_time);
+  if (units_changed & HOUR_UNIT) update_hours(tick_time);
+  if (units_changed & MINUTE_UNIT) update_minutes(tick_time);
+  if (units_changed & SECOND_UNIT) update_seconds(tick_time);
 }
 
 
@@ -438,7 +432,6 @@ static void init(void) {
   memset(&year_digits_images, 0, sizeof(year_digits_images));
   memset(&month_digits_layers, 0, sizeof(month_digits_layers));
   memset(&month_digits_images, 0, sizeof(month_digits_images));
-  
   memset(&date_digits_layers, 0, sizeof(date_digits_layers));
   memset(&date_digits_images, 0, sizeof(date_digits_images));
   memset(&battery_percent_layers, 0, sizeof(battery_percent_layers));
@@ -490,9 +483,7 @@ static void init(void) {
   bluetooth_layer = bitmap_layer_create(frame3);
   bitmap_layer_set_bitmap(bluetooth_layer, bluetooth_image);
   layer_add_child(window_layer, bitmap_layer_get_layer(bluetooth_layer));
-  
 
-  
   battery_image = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERY);
   GRect frame4 = (GRect) {
     .origin = { .x = 13, .y = 51 },
@@ -513,12 +504,9 @@ static void init(void) {
   time_format_layer = bitmap_layer_create(frame5);
   if (clock_is_24h_style()) {
     time_format_image = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_24_HOUR_MODE);
-    bitmap_layer_set_bitmap(time_format_layer, time_format_image);
-    
+    bitmap_layer_set_bitmap(time_format_layer, time_format_image); 
   }
   layer_add_child(window_layer, bitmap_layer_get_layer(time_format_layer));
-
-  
   tilde_image = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_TILDE);
   GRect frame6 = (GRect) {
     .origin = { .x = 99, .y = 42 },
@@ -538,7 +526,7 @@ static void init(void) {
   layer_add_child(window_layer, bitmap_layer_get_layer(sepames_layer));
   
   
-  // Create time and date layers
+  // Crea capa de fecha y hora
   GRect dummy_frame = { {0, 0}, {0, 0} };
   day_name_layer = bitmap_layer_create(dummy_frame);
   layer_add_child(window_layer, bitmap_layer_get_layer(day_name_layer));
@@ -547,7 +535,6 @@ static void init(void) {
     time_digits_layers[i] = bitmap_layer_create(dummy_frame);
     layer_add_child(window_layer, bitmap_layer_get_layer(time_digits_layers[i]));
   }
-  
   
   for (int i = 0; i < TOTAL_SEG_DIGITS; ++i) {
     seg_digits_layers[i] = bitmap_layer_create(dummy_frame);
@@ -575,15 +562,9 @@ static void init(void) {
     layer_add_child(window_layer, bitmap_layer_get_layer(battery_percent_layers[i]));
   }
     
-
-
-  
   toggle_bluetooth_icon(bluetooth_connection_service_peek());
   update_battery(battery_state_service_peek());
 
-
- 
-   
   appStarted = true;
   
   // Avoids a blank screen on watch start.
@@ -594,28 +575,20 @@ static void init(void) {
   tick_timer_service_subscribe(SECOND_UNIT, handle_tick);
   
   
-  if(SEGUNDOS) {
-        tick_timer_service_subscribe(SECOND_UNIT, handle_tick);
-      }
-  else {
-        tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
-      }
-
-
+  if(SEGUNDOS)
+    tick_timer_service_subscribe(SECOND_UNIT, handle_tick);
+  else
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 
   bluetooth_connection_service_subscribe(bluetooth_connection_callback);
   battery_state_service_subscribe(&update_battery);
-  
   app_message_register_inbox_received((AppMessageInboxReceived) in_recv_handler);
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
-
 
 }
 
 
 static void deinit(void) {
-
-
 
   tick_timer_service_unsubscribe();
   bluetooth_connection_service_unsubscribe();
@@ -626,7 +599,6 @@ static void deinit(void) {
   gbitmap_destroy(background_image);
   background_image = NULL;
   
-
   layer_remove_from_parent(bitmap_layer_get_layer(separator_layer));
   bitmap_layer_destroy(separator_layer);
   gbitmap_destroy(separator_image);
@@ -670,9 +642,6 @@ static void deinit(void) {
   gbitmap_destroy(day_name_image);
   day_name_image = NULL;
 
-
-  
-	
   for (int i = 0; i < TOTAL_DATE_DIGITS; i++) {
     layer_remove_from_parent(bitmap_layer_get_layer(date_digits_layers[i]));
     gbitmap_destroy(date_digits_images[i]);
@@ -680,7 +649,6 @@ static void deinit(void) {
     bitmap_layer_destroy(date_digits_layers[i]);
 	  date_digits_layers[i] = NULL;
   }
-  
   
   for (int i = 0; i < TOTAL_DATE_DIGITS; i++) {
     layer_remove_from_parent(bitmap_layer_get_layer(month_digits_layers[i]));
@@ -703,9 +671,8 @@ static void deinit(void) {
     gbitmap_destroy(seg_digits_images[i]);
     seg_digits_images[i] = NULL;
     bitmap_layer_destroy(seg_digits_layers[i]);
-	seg_digits_layers[i] = NULL;
+	  seg_digits_layers[i] = NULL;
   }
-  
   
   for (int i = 0; i < TOTAL_YEAR_DIGITS; i++) {
     layer_remove_from_parent(bitmap_layer_get_layer(year_digits_layers[i]));
@@ -726,8 +693,6 @@ static void deinit(void) {
   layer_remove_from_parent(window_layer);
   layer_destroy(window_layer);
 	
-  //window_destroy(window);
-
 }
 
 int main(void) {
