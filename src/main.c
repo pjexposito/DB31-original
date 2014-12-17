@@ -188,6 +188,17 @@ const int TINY_IMAGE_RESOURCE_IDS[] = {
 };
 
 
+  static void carga_preferencias(void)
+  {
+    
+    // Carga las preferencias
+    IDIOMA = persist_exists(KEY_IDIOMA) ? persist_read_int(KEY_IDIOMA) : 0;
+    DATEFORMAT = persist_exists(KEY_DATEFORMAT) ? persist_read_bool(KEY_DATEFORMAT) : 0;
+    BluetoothVibe = persist_exists(KEY_VIBE) ? persist_read_int(KEY_VIBE) : 1;
+    SEGUNDOS = persist_exists(KEY_SEGUNDOS) ? persist_read_int(KEY_SEGUNDOS) : 1;
+    HourlyVibe = persist_exists(KEY_HOURLYVIBE) ? persist_read_int(KEY_HOURLYVIBE) : 0;
+ 
+  }
 
   static void in_recv_handler(DictionaryIterator *iterator, void *context)
 {
@@ -199,69 +210,30 @@ const int TINY_IMAGE_RESOURCE_IDS[] = {
   Tuple *key_hourlyvibe_tuple = dict_find(iterator, KEY_HOURLYVIBE);
 
   if(strcmp(key_idioma_tuple->value->cstring, "spanish") == 0)
-    {
-        //Set and save as inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "En español");
-        persist_write_int(KEY_IDIOMA, 1);
-    }
-      else if(strcmp(key_idioma_tuple->value->cstring, "english") == 0)
-    {
-        //Set and save as not inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "En inglés");
-        persist_write_int(KEY_IDIOMA, 0);
-  }
-    
+    persist_write_int(KEY_IDIOMA, 1);
+  else if(strcmp(key_idioma_tuple->value->cstring, "english") == 0)
+    persist_write_int(KEY_IDIOMA, 0);
+ 
   if(strcmp(key_dateformat_tuple->value->cstring, "DDMM") == 0)
-    {
-        //Set and save as inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "DDMM");
-        persist_write_bool(KEY_DATEFORMAT, 1);
-    }
-      else if(strcmp(key_dateformat_tuple->value->cstring, "MMDD") == 0)
-    {
-        //Set and save as not inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "MMDD");
-        persist_write_bool(KEY_DATEFORMAT, 0);
-  }    
+      persist_write_bool(KEY_DATEFORMAT, 1);
+  else if(strcmp(key_dateformat_tuple->value->cstring, "MMDD") == 0)
+    persist_write_bool(KEY_DATEFORMAT, 0);  
     
   if(strcmp(key_vibe_tuple->value->cstring, "on") == 0)
-    {
-        //Set and save as inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "Vibra");
-        persist_write_int(KEY_VIBE, 1);
-    }
-      else if(strcmp(key_vibe_tuple->value->cstring, "off") == 0)
-    {
-        //Set and save as not inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "No vibra");
-        persist_write_int(KEY_VIBE, 0);
-  }    
+      persist_write_int(KEY_VIBE, 1);
+  else if(strcmp(key_vibe_tuple->value->cstring, "off") == 0)
+      persist_write_int(KEY_VIBE, 0); 
     
   if(strcmp(key_segundos_tuple->value->cstring, "on") == 0)
-    {
-        //Set and save as inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "Muestra segundos");
-        persist_write_int(KEY_SEGUNDOS, 1);
-    }
-      else if(strcmp(key_segundos_tuple->value->cstring, "off") == 0)
-    {
-        //Set and save as not inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "No muestra segundos");
-        persist_write_int(KEY_SEGUNDOS, 0);
-  }      
+      persist_write_int(KEY_SEGUNDOS, 1);
+  else if(strcmp(key_segundos_tuple->value->cstring, "off") == 0)
+      persist_write_int(KEY_SEGUNDOS, 0);     
     
   if(strcmp(key_hourlyvibe_tuple->value->cstring, "on") == 0)
-    {
-        //Set and save as inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "Vibra con el cambio de hora");
-        persist_write_int(KEY_HOURLYVIBE, 1);
-    }
-      else if(strcmp(key_hourlyvibe_tuple->value->cstring, "off") == 0)
-    {
-        //Set and save as not inverted
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "No vibra con el cambio de hora");
-        persist_write_int(KEY_HOURLYVIBE, 0);
-  }  
+     persist_write_int(KEY_HOURLYVIBE, 1);
+  else if(strcmp(key_hourlyvibe_tuple->value->cstring, "off") == 0)
+     persist_write_int(KEY_HOURLYVIBE, 0);
+        
     
 }
 
@@ -457,6 +429,7 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
   
 }
 
+
 static void init(void) {
   
   memset(&time_digits_layers, 0, sizeof(time_digits_layers));
@@ -471,14 +444,8 @@ static void init(void) {
   memset(&battery_percent_layers, 0, sizeof(battery_percent_layers));
   memset(&battery_percent_image, 0, sizeof(battery_percent_image));
 
-  // Carga las preferencias
-  IDIOMA = persist_exists(KEY_IDIOMA) ? persist_read_int(KEY_IDIOMA) : 0;
-  DATEFORMAT = persist_exists(KEY_DATEFORMAT) ? persist_read_bool(KEY_DATEFORMAT) : 0;
-  BluetoothVibe = persist_exists(KEY_VIBE) ? persist_read_int(KEY_VIBE) : 1;
-  SEGUNDOS = persist_exists(KEY_SEGUNDOS) ? persist_read_int(KEY_SEGUNDOS) : 1;
-  HourlyVibe = persist_exists(KEY_HOURLYVIBE) ? persist_read_int(KEY_HOURLYVIBE) : 0;
- 
-
+  carga_preferencias();
+  
   window = window_create();
   if (window == NULL) {
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "OOM: couldn't allocate window");
